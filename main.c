@@ -15,7 +15,10 @@ void get_input() {
     size_t len=0;
     ssize_t byteread=getline(&input,&len,stdin);
 
-    if(byteread!=-1) {
+    if(byteread==1 && input[0]=='\n') {
+
+    }else if(byteread!=-1){
+        printf("Unrecognized command\n");
     }else {
         exit(0);
     }
