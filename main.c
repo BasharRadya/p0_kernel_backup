@@ -6,6 +6,8 @@
 #include <time.h>
 #include <errno.h>
 #include <sys/wait.h>
+#include <stdbool.h>
+#include <sys/stat.h>
 char *get_current_dir_name(void);
 
 void print_pwd()
@@ -16,9 +18,16 @@ void print_pwd()
     free(pwd);
 }
 
-int sub_split(char* s,int start) {
+#define funptr(fptr) bool (*fptr)(char)
+bool space_cheker(char c) {
+    return (isspace(c));
+}
+bool colon_checker(char c) {
+    return (c==':');
+}
+int sub_split(char* s,int start,funptr(checker)) {
     int count=0;
-    while(!isspace(s[start]) && s[start]!='\0'){
+    while(!checker(s[start]) && s[start]!='\0'){
         count++;
         start++;
 
@@ -34,13 +43,13 @@ char* make_sub_spliot(char* s,int start,int end) {
     new_s[sz-1]='\0';
     return new_s;
 }
-char** split(char* s,int *num_of_words) {
+char** split(char* s,int *num_of_words,funptr(checker)) {
     int length=strlen(s);
     char ** arr=(char**)malloc(sizeof(char*)*length);
     int num_words=0;
     int i=0;
     while(i+1<length) {
-        int tmp=sub_split(s,i);
+        int tmp=sub_split(s,i,checker);
         if(tmp!=0) {
             char *c=make_sub_spliot(s,i,i+tmp);
             arr[num_words]=c;
@@ -57,7 +66,7 @@ char** split(char* s,int *num_of_words) {
 
 
 
-char** get_input(int* x) {
+char** get_input(int* x,funptr(checker)) {
     char* input=NULL; //force getline to allloc it
     size_t len=0;
     ssize_t byteread=getline(&input,&len,stdin);
@@ -66,7 +75,7 @@ char** get_input(int* x) {
         return NULL;
     }else if(byteread!=-1){
         input[strcspn(input,"\n")]='\0'; //delete \n at the end and if tis not their then we are overriding null terminator with null terminator
-        char** arr=split(input,x);
+        char** arr=split(input,x,checker);
         free(input);
         return arr;
     }else {
@@ -83,9 +92,37 @@ void free_all(char **c,int num_of_words) {
 void do_execv(char** arr,int num_words,int start) {
     //there is enough space in arr
     arr[num_words]=NULL;
-    int x= execv(arr[start], &arr[start]);
+    execv(arr[start], &arr[start]);
     printf("error num %d : %s\n",errno,strerror(errno));
-    // execv(const char *path, char *const argv[]);
+}
+
+void handle_command(char **arr,int num_words);
+void some_name(char **arr,int num_words) {
+    char* path=getenv("PATH");
+    int x;
+    char** path_arr=split(path,&x,colon_checker);
+    bool got_it=false;
+    for(int i=0;i<x;i++) {
+        int s1=strlen(arr[0])+strlen(path_arr[i]);
+        char* new_c =(char*)malloc(s1+2);
+        sprintf(new_c,"%s/%s",path_arr[i],arr[0]);
+        struct stat status;
+        int xx=stat(new_c,&status);
+        if(xx==-1) {
+            free(new_c);
+            continue;
+        }else{
+            got_it=true;
+            free(arr[0]);
+            arr[0]=new_c;
+            handle_command(arr,num_words);
+            break;
+        }
+    }
+    if(!got_it) {
+        printf("Unrecognized command: %s\n",arr[0]);
+    }
+    free_all(path_arr,x);
 }
 void handle_command(char **arr,int num_words) {
     if(strcmp(arr[0],"exit")==0) {
@@ -102,9 +139,7 @@ void handle_command(char **arr,int num_words) {
     }else if(strcmp(arr[0],"exec")==0) {
         do_execv(arr,num_words,1);
     }else if(arr[0][0]=='.' || arr[0][0]=='/') {
-        pid_t pid;
-
-        pid=fork();
+        pid_t pid=fork();
         if(pid<0) {
             printf("Fork failed: %s",strerror(errno));
             exit(EXIT_FAILURE);
@@ -118,21 +153,21 @@ void handle_command(char **arr,int num_words) {
             }
         }
     }else{
-        printf("Unrecognized command: %s\n",arr[0]);
+        some_name(arr,num_words);
     }
-    //this should be alwys be last
-    free_all(arr,num_words);
+
 }
 int main(void) {
     while(1) {
         print_pwd();
         int num_words=0;
-        char**arr=get_input(&num_words);
+        char**arr=get_input(&num_words,space_cheker);
         if(arr==NULL) {
             continue;
         }
         handle_command(arr,num_words);
-
+        //this should be alwys be last
+        free_all(arr,num_words);
     }
     return 0;
 }
