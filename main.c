@@ -5,7 +5,7 @@
 #include <ctype.h>
 #include <time.h>
 #include <errno.h>
-
+#include <sys/wait.h>
 char *get_current_dir_name(void);
 
 void print_pwd()
@@ -80,6 +80,13 @@ void free_all(char **c,int num_of_words) {
     }
     free((char*)c);
 }
+void do_execv(char** arr,int num_words,int start) {
+    //there is enough space in arr
+    arr[num_words]=NULL;
+    int x= execv(arr[start], &arr[start]);
+    printf("error num %d : %s\n",errno,strerror(errno));
+    // execv(const char *path, char *const argv[]);
+}
 void handle_command(char **arr,int num_words) {
     if(strcmp(arr[0],"exit")==0) {
         exit(0);
@@ -93,11 +100,24 @@ void handle_command(char **arr,int num_words) {
         };
 
     }else if(strcmp(arr[0],"exec")==0) {
-        arr[num_words]=NULL;
-        int x= execv(arr[1], &arr[1]);
-        printf("error num %d : %s\n",errno,strerror(errno));
-        // execv(const char *path, char *const argv[]);
-    }else {
+        do_execv(arr,num_words,1);
+    }else if(arr[0][0]=='.' || arr[0][0]=='/') {
+        pid_t pid;
+
+        pid=fork();
+        if(pid<0) {
+            printf("Fork failed: %s",strerror(errno));
+            exit(EXIT_FAILURE);
+        }else if(pid==0) {
+            do_execv(arr,num_words,0);
+            exit(EXIT_FAILURE);
+        }else {
+            pid_t child_pid = waitpid(pid,NULL,0);
+            if(child_pid==-1) {
+                printf("Waitpid failed:%s\n",strerror(errno));
+            }
+        }
+    }else{
         printf("Unrecognized command: %s\n",arr[0]);
     }
     //this should be alwys be last
