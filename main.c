@@ -12,6 +12,7 @@ void print_pwd()
 {
     char *pwd=get_current_dir_name();
     printf("%s$ ",pwd);
+    fflush(stdout);
     free(pwd);
 }
 
@@ -80,9 +81,25 @@ void free_all(char **c,int num_of_words) {
     free((char*)c);
 }
 void handle_command(char **arr,int num_words) {
+    if(strcmp(arr[0],"exit")==0) {
+        exit(0);
+    }else if(strcmp(arr[0],"cd")==0) {
+        if(num_words>2) {
+            printf("Usage cd: cd [dir]\n");
+            return;
+        }
+        if(chdir(arr[1])==-1) {
+            printf("Error changing directory errno num %d :%s\n",errno,strerror(errno));
+        };
 
-    printf("Unrecognized command: %s\n",arr[0]);
-
+    }else if(strcmp(arr[0],"exec")==0) {
+        arr[num_words]=NULL;
+        int x= execv(arr[1], &arr[1]);
+        printf("error num %d : %s\n",errno,strerror(errno));
+        // execv(const char *path, char *const argv[]);
+    }else {
+        printf("Unrecognized command: %s\n",arr[0]);
+    }
     //this should be alwys be last
     free_all(arr,num_words);
 }
